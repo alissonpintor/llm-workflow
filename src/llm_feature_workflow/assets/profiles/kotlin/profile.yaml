@@ -1,0 +1,17 @@
+id: kotlin
+name: Kotlin
+category: language
+kinds: [backend, mobile, library, cli]
+defaults:
+  gradle_command: gradlew.bat
+  test_command: gradlew.bat test
+gates:
+  - id: kotlin-test
+    working_directory: "{module_path}"
+    command: "{test_command}"
+rule: |
+  Use nulabilidade e tipos a favor do domínio, preserve cancelamento de coroutines, evite `!!` e modele interfaces compatíveis com testes.
+techspec_guidance:
+  - Declare versão Kotlin/JVM, build tool, dispatchers, ownership de coroutines e estratégia de serialização.
+edge_cases:
+  - Cubra null, cancelamento, exceção em coroutine, igualdade/identidade e interoperabilidade Java quando existir.

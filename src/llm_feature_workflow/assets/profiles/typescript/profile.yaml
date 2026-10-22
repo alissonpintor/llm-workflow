@@ -1,0 +1,11 @@
+id: typescript
+name: TypeScript
+category: language
+requires: [node]
+kinds: [backend, frontend, worker, library, cli]
+rule: |
+  Preserve `strict`, evite `any` sem contenção, valide dados externos em runtime e não confunda tipo estático com contrato de entrada confiável.
+techspec_guidance:
+  - Diferencie tipos internos, DTOs externos e validação runtime; registre estratégia de geração de tipos quando houver.
+edge_cases:
+  - Cubra `undefined`/`null`, narrowing incorreto, payload externo incompatível e condição assíncrona de corrida.

@@ -1,0 +1,12 @@
+id: compose
+name: Jetpack Compose
+category: ui
+requires: [android]
+conflicts: []
+kinds: [mobile]
+rule: |
+  Faça state hoisting, mantenha efeitos controlados por lifecycle, use APIs de acessibilidade/semantics e preserve estabilidade de parâmetros.
+techspec_guidance:
+  - Documente state holder, eventos, efeitos, navegação, previews e estratégia de testes Compose.
+edge_cases:
+  - Cubra recomposição, efeito repetido, restauração, teclado, leitor de tela e configuração de tamanho/fonte.

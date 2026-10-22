@@ -1,0 +1,22 @@
+id: django
+name: Django
+category: framework
+requires: [python]
+conflicts: [fastapi]
+kinds: [backend]
+defaults:
+  django_check_command: python manage.py check
+  migration_check_command: python manage.py makemigrations --check --dry-run
+gates:
+  - id: django-check
+    working_directory: "{module_path}"
+    command: "{django_check_command}"
+  - id: django-migrations
+    working_directory: "{module_path}"
+    command: "{migration_check_command}"
+rule: |
+  Trate migrations como contrato versionado, use transações conscientemente, evite N+1 com planos de consulta explícitos e preserve CSRF, autenticação e separação de settings por ambiente.
+techspec_guidance:
+  - Documente models, migrations, transações, permissões, impacto no admin e estratégia contra N+1.
+edge_cases:
+  - Cubra migration incompatível, concorrência de transação, queryset vazio/grande, CSRF e permissão por objeto.

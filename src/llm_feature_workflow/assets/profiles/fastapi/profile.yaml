@@ -1,0 +1,12 @@
+id: fastapi
+name: FastAPI
+category: framework
+requires: [python]
+conflicts: [django]
+kinds: [backend]
+rule: |
+  Separe modelos de entrada e saída, valide dependências e autorização, mantenha OpenAPI compatível com o comportamento real e teste lifespan, handlers assíncronos e mapeamento de erros HTTP.
+techspec_guidance:
+  - Documente modelos Pydantic, dependências, lifespan, autenticação, status HTTP e contrato OpenAPI.
+edge_cases:
+  - Cubra body inválido, dependency failure, disconnect/cancelamento, resposta streaming e exceções em background tasks.

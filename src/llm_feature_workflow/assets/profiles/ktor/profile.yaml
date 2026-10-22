@@ -1,0 +1,11 @@
+id: ktor
+name: Ktor
+category: framework
+requires: [kotlin]
+kinds: [backend]
+rule: |
+  Organize rotas e serviços por funcionalidade, use DTOs tipados, plugins centralizados e cliente HTTP suspending. Não bloqueie threads de evento nem exponha stack traces ou credenciais.
+techspec_guidance:
+  - Documente plugins, rotas, DTOs, autenticação, serialização e clientes HTTP; use TestHost/MockEngine quando aplicável.
+edge_cases:
+  - Cubra cancelamento de coroutine, timeout, DTO inválido, sessão expirada, plugin ausente e erro de integração.

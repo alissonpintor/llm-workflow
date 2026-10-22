@@ -1,0 +1,15 @@
+id: kotlin-sql-ghost-fields
+name: Kotlin SQL Ghost Fields
+description: Detecta leituras de campos que não aparecem em SELECTs no mesmo arquivo; exige validação contextual.
+paths:
+  - "**/*.kt"
+run_at:
+  - task_review
+  - final_acceptance
+files:
+  - source: files/scripts/find_ghost_fields.py
+    destination: scripts/find_ghost_fields.py
+rule: |
+  ## Kotlin/SQL — campos fantasma
+
+  Quando uma mudança Kotlin alterar SQL (`SELECT`) ou leituras `row["CAMPO"]`, `.get("CAMPO")` ou `.getValue("CAMPO")`, execute `python scripts/find_ghost_fields.py <source-root>` no review da task e no aceite final. O total bruto não reprova: campo confirmado bloqueia, origem não rastreada bloqueia até esclarecimento e falso positivo exige evidência. Gere o rascunho em diretório temporário e remova-o ao terminar.

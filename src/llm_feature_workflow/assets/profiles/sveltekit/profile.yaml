@@ -1,0 +1,12 @@
+id: sveltekit
+name: SvelteKit
+category: framework
+requires: [typescript]
+conflicts: [react]
+kinds: [frontend]
+rule: |
+  Respeite a versão Svelte adotada, separe dados de servidor de dados do browser, mantenha tipagem de rotas e trate loading/data/empty/error, foco e acessibilidade.
+techspec_guidance:
+  - Documente SSR, load/actions, estado reativo, rotas, componentes e fluxo servidor/browser sem impor arquitetura BFF quando ela não existir.
+edge_cases:
+  - Cubra hidratação, navegação/reload, estado compartilhado indevido, resposta tardia e teclado/leitor de tela.

@@ -1,0 +1,11 @@
+id: views
+name: Android Views
+category: ui
+requires: [android]
+kinds: [mobile]
+rule: |
+  Trate binding com lifecycle correto, preserve estado na recriação de telas e mantenha lógica de negócio fora de Activity/Fragment.
+techspec_guidance:
+  - Documente layouts, bindings, ViewModel, navegação, restauração e testes instrumentados aplicáveis.
+edge_cases:
+  - Cubra binding após destroyView, mudança de configuração, process death, foco e acessibilidade.

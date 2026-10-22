@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-feature-workflow"
+version = "0.1.0"
+description = "Workflow reutilizável e agnóstico de stack para PRDs, Tech Specs, tasks e execução assistida por LLMs"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+keywords = ["llm", "prd", "tech-spec", "workflow", "agents", "software-development"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Code Generators",
+]
+dependencies = [
+  "jinja2>=3.1.4,<4",
+  "pyyaml>=6.0.2,<7",
+]
+
+[project.urls]
+Homepage = "https://github.com/alissonpintor/llm-workflow"
+Repository = "https://github.com/alissonpintor/llm-workflow"
+Issues = "https://github.com/alissonpintor/llm-workflow/issues"
+
+[project.scripts]
+llm-workflow = "llm_feature_workflow.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<9",
+  "ruff>=0.14,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llm_feature_workflow"]
+
+[tool.hatch.build]
+artifacts = ["src/llm_feature_workflow/assets/**"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

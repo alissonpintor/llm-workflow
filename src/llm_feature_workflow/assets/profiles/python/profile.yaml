@@ -1,0 +1,24 @@
+id: python
+name: Python
+category: language
+kinds: [backend, worker, library, cli]
+defaults:
+  test_command: python -m pytest
+  lint_command: python -m ruff check .
+  typecheck_command: python -m mypy .
+gates:
+  - id: python-lint
+    working_directory: "{module_path}"
+    command: "{lint_command}"
+  - id: python-typecheck
+    working_directory: "{module_path}"
+    command: "{typecheck_command}"
+  - id: python-unit
+    working_directory: "{module_path}"
+    command: "{test_command}"
+rule: |
+  Use o gerenciador, formatador, linter e type checker declarados em `workflow.yaml`; não presuma pip, Poetry, uv, Ruff, mypy ou Pyright sem configuração. Mantenha tipos nas interfaces públicas, erros explícitos e testes isolados de recursos externos.
+techspec_guidance:
+  - Declare versão do Python, gerenciador de dependências, estratégia de ambientes e type checker.
+edge_cases:
+  - Considere exceções assíncronas, cancelamento, timezone, encoding, precisão numérica e recursos fechados.

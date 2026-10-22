@@ -1,0 +1,11 @@
+id: net-http
+name: Go net/http
+category: framework
+requires: [go]
+kinds: [backend]
+rule: |
+  Configure timeouts do servidor e cliente, limite bodies, feche respostas e centralize encoding e erros HTTP.
+techspec_guidance:
+  - Registre timeouts, limites de body, middleware e política de shutdown gracioso.
+edge_cases:
+  - Cubra cliente desconectado, body excessivo, slowloris, shutdown e response body não fechado.

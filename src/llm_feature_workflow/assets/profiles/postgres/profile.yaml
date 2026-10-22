@@ -1,0 +1,9 @@
+id: postgres
+name: PostgreSQL
+category: service
+rule: |
+  Migrations são versionadas e reversíveis quando possível; constraints protegem invariantes, queries são parametrizadas e transações têm limites explícitos.
+techspec_guidance:
+  - Documente schema, migrations, constraints, índices, transações, volume e plano de rollback.
+edge_cases:
+  - Cubra deadlock, unique violation, lock timeout, migration parcial, timezone, precisão e volume crescente.

@@ -1,0 +1,25 @@
+id: node
+name: Node.js
+category: runtime
+kinds: [backend, frontend, worker, library, cli]
+defaults:
+  package_manager: npm
+  lint_command: npm run lint
+  typecheck_command: npm run typecheck
+  test_command: npm test
+gates:
+  - id: node-lint
+    working_directory: "{module_path}"
+    command: "{lint_command}"
+  - id: node-typecheck
+    working_directory: "{module_path}"
+    command: "{typecheck_command}"
+  - id: node-test
+    working_directory: "{module_path}"
+    command: "{test_command}"
+rule: |
+  Use o package manager e scripts declarados no projeto, mantenha lockfile único por módulo e não invente scripts ausentes em `package.json`.
+techspec_guidance:
+  - Declare versão Node, package manager, módulos ESM/CJS e scripts reais usados como gates.
+edge_cases:
+  - Cubra promise rejeitada, abort signal, stream interrompido, event-loop blocking e shutdown.

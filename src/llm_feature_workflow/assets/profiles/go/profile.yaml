@@ -1,0 +1,20 @@
+id: go
+name: Go
+category: language
+kinds: [backend, worker, library, cli]
+defaults:
+  vet_command: go vet ./...
+  test_command: go test ./...
+gates:
+  - id: go-vet
+    working_directory: "{module_path}"
+    command: "{vet_command}"
+  - id: go-test
+    working_directory: "{module_path}"
+    command: "{test_command}"
+rule: |
+  Propague `context.Context`, envolva erros com contexto sem perder a causa, defina ownership de goroutines/channels e mantenha interfaces pequenas no lado consumidor.
+techspec_guidance:
+  - Defina ciclo de vida de goroutines, cancelamento, timeouts, interfaces consumidoras e estratégia de erros.
+edge_cases:
+  - Cubra goroutine leak, channel fechado, data race, contexto cancelado e zero values.

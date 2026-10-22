@@ -1,0 +1,12 @@
+id: fastify
+name: Fastify
+category: framework
+requires: [node]
+conflicts: [nestjs]
+kinds: [backend]
+rule: |
+  Use schemas de request/response, plugins encapsulados, hooks com ordem explícita e tratamento central de erros.
+techspec_guidance:
+  - Documente schemas, plugins, hooks, autenticação e serialização de resposta.
+edge_cases:
+  - Cubra schema inválido, plugin não registrado, hook interrompido, timeout e double reply.

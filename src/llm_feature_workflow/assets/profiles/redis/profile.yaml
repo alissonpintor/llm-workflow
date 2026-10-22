@@ -1,0 +1,9 @@
+id: redis
+name: Redis
+category: service
+rule: |
+  Defina namespace, TTL, serialização, invalidação, ownership e política fail-open/fail-closed; Redis não é fonte de verdade sem decisão explícita.
+techspec_guidance:
+  - Documente formato das chaves, TTL, invalidação, consistência, volume, eviction e comportamento indisponível.
+edge_cases:
+  - Cubra cache stampede, chave sem TTL, colisão entre tenants/usuários, dado stale, eviction e indisponibilidade.

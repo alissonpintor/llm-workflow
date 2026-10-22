@@ -1,0 +1,12 @@
+id: nestjs
+name: NestJS
+category: framework
+requires: [node, typescript]
+conflicts: [fastify]
+kinds: [backend]
+rule: |
+  Preserve limites de módulos, providers explícitos, DTOs validados, guards para autorização e filtros para erros.
+techspec_guidance:
+  - Documente módulos, providers, escopos, guards, pipes, interceptors e filtros afetados.
+edge_cases:
+  - Cubra provider ausente/circular, validação de DTO, guard negado e exceção em interceptor.

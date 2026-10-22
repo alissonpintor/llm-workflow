@@ -1,0 +1,11 @@
+id: chi
+name: Chi Router
+category: framework
+requires: [go]
+kinds: [backend]
+rule: |
+  Mantenha middleware ordenado e explícito, parâmetros de rota validados, handlers finos e erros HTTP centralizados.
+techspec_guidance:
+  - Documente grupos de rotas, ordem de middleware e tradução de erros para HTTP.
+edge_cases:
+  - Cubra rota inexistente, método inválido, parâmetro malformado, middleware interrompido e timeout do request.

@@ -1,0 +1,18 @@
+id: android
+name: Android
+category: platform
+requires: [kotlin]
+kinds: [mobile]
+defaults:
+  android_lint_command: gradlew.bat lint
+  android_unit_command: gradlew.bat test
+gates:
+  - id: android-lint
+    working_directory: "{module_path}"
+    command: "{android_lint_command}"
+rule: |
+  Respeite lifecycle, restauração de estado, permissões, background limits e separação entre UI e estado testável.
+techspec_guidance:
+  - Documente min/target SDK, módulos Gradle, lifecycle, navegação, persistência, permissões e testes instrumentados.
+edge_cases:
+  - Cubra rotação/process death, permissão negada, offline, background, deep link e diferentes tamanhos de tela.

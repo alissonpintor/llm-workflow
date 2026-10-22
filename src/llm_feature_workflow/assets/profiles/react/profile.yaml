@@ -1,0 +1,12 @@
+id: react
+name: React
+category: framework
+requires: [typescript]
+conflicts: [sveltekit]
+kinds: [frontend]
+rule: |
+  Use componentes pequenos e contratos tipados; derive valores em vez de duplicar estado. Efeitos precisam de cleanup e ownership; preserve acessibilidade e estados de carregamento/erro.
+techspec_guidance:
+  - Declare roteamento, renderização, ownership de estado, data fetching e testes de comportamento dos componentes.
+edge_cases:
+  - Cubra stale closures, efeitos repetidos, unmount durante request, concorrência e navegação por teclado.
