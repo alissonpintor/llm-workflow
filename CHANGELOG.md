@@ -2,6 +2,8 @@
 
 ## 0.2.0 — em desenvolvimento
 
+- Diagnósticos de geração distinguem truncamento, recusa, JSON inválido e violações sanitizadas do schema, sem exibir conteúdo privado ou repetir chamadas.
+- Setup informa presença da chave no processo sem autenticação remota; placeholders de brief são recusados antes do envio.
 - OpenRouter opcional em `configure --ai`, com escolha de modelo, JSON Schema e chave somente no ambiente/entrada oculta.
 - Catálogo público, setup offline, proposta separada, preview e aplicação com `--approve`.
 - Consentimento de envio/custo, contexto por allowlist, respostas limitadas e ausência de retries/fallbacks automáticos.

@@ -15,6 +15,87 @@ from .config import WorkflowError
 BASE_URL = "https://openrouter.ai/api/v1"
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
+# Only schema-owned labels and known validator messages may enter diagnostics.
+# Pydantic's full errors can include input values, JSON excerpts and unknown extra keys.
+_SCHEMA = Proposal.model_json_schema()
+_FIELD_NAMES = {
+    name
+    for node in [_SCHEMA, *_SCHEMA.get("$defs", {}).values()]
+    for name in node.get("properties", {})
+}
+_VALIDATOR_MESSAGES = {
+    "evidências de domínio com IDs duplicados",
+    "padrão sem referência a evidência existente",
+    "contexto insuficiente exige perguntas e não autoriza padrões",
+    "recomendação conclusiva exige evidência e ausência de pendências",
+    "design simples não deve prescrever padrões DDD",
+    "DDD estratégico não autoriza padrões táticos",
+    "DDD seletivo exige padrão tático justificado",
+    "avaliação de domínio duplicada no mesmo escopo",
+    "avaliações de domínio precisam cobrir todos os módulos propostos",
+    "avaliação referencia pergunta bloqueante inexistente",
+    "use caminhos relativos com /",
+    "caminho reservado ou fora do módulo",
+    "comandos devem ter uma única linha sem controles",
+    "cada módulo precisa de regras de design, segurança e testes",
+    "uma proposta sem perguntas deve conter módulos",
+    *(f"IDs duplicados em {field}" for field in ("profiles", "modules", "services", "questions")),
+}
+_ERROR_LABELS = {
+    "missing": "campo obrigatório ausente",
+    "extra_forbidden": "campo adicional não permitido",
+    "string_too_short": "texto abaixo do tamanho mínimo",
+    "string_too_long": "texto acima do tamanho máximo",
+    "string_pattern_mismatch": "formato de texto inválido",
+    "too_short": "lista abaixo do tamanho mínimo",
+    "too_long": "lista acima do tamanho máximo",
+    "literal_error": "opção fora das permitidas",
+    "list_type": "lista esperada",
+    "string_type": "texto esperado",
+    "model_type": "objeto esperado",
+}
+
+
+def _schema_diagnostic(error: ValidationError) -> str:
+    details = []
+    for item in error.errors(include_url=False, include_input=False)[:5]:
+        path = ""
+        for part in item["loc"]:
+            if type(part) is int and 0 <= part <= 1000:
+                path += f"[{part}]"
+            else:
+                label = (
+                    part if isinstance(part, str) and part in _FIELD_NAMES else "[campo omitido]"
+                )
+                path += ("." if path else "") + label
+        reason = _ERROR_LABELS.get(item["type"], "restrição do contrato não atendida")
+        if item["type"] == "value_error":
+            known = str(item.get("ctx", {}).get("error", ""))
+            if known in _VALIDATOR_MESSAGES:
+                reason = known
+        details.append(f"{path or 'proposta'}: {reason}")
+    if error.error_count() > 5:
+        details.append(f"mais {error.error_count() - 5} erro(s)")
+    return "; ".join(details)
+
+
+def _generation_failure(message: str, envelope: dict) -> WorkflowError:
+    usage = envelope.get("usage")
+    counters = []
+    if isinstance(usage, dict):
+        details = usage.get("completion_tokens_details")
+        values = [("saída", usage.get("completion_tokens"))]
+        if isinstance(details, dict):
+            values.append(("raciocínio", details.get("reasoning_tokens")))
+        for label, value in values:
+            if type(value) is int and 0 <= value <= 10**12:
+                counters.append(f"{label}={value}")
+    tokens = " Contadores informados: " + ", ".join(counters) + "." if counters else ""
+    return WorkflowError(
+        message + tokens + " Nada foi salvo ou aplicado. Não houve retry automático; "
+        "a chamada pode ter sido cobrada."
+    )
+
 
 class OpenRouter:
     def __init__(self, *, api_key: str = "", transport: httpx.BaseTransport | None = None):
@@ -111,25 +192,53 @@ class OpenRouter:
             },
         }
         envelope = self._request("POST", "/chat/completions", payload)
+        choices = envelope.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise _generation_failure("OpenRouter retornou choices ausente ou inválido.", envelope)
+        choice = choices[0]
+        if choice.get("finish_reason") == "length":
+            raise _generation_failure(
+                "Resposta truncada por limite de tokens "
+                f"(finish_reason=length; limite={max_tokens}). "
+                "Tokens de raciocínio também podem consumir esse limite. "
+                "Antes de outra geração, avalie reduzir o escopo, outro modelo ou "
+                "--max-tokens 16000 (se o limite atual for menor); aumentar pode elevar o custo.",
+                envelope,
+            )
+        message = choice.get("message")
+        if choice.get("finish_reason") == "content_filter" or (
+            isinstance(message, dict) and message.get("refusal")
+        ):
+            raise _generation_failure("Resposta recusada pelo modelo/provedor.", envelope)
+        if choice.get("finish_reason") != "stop":
+            raise _generation_failure("Geração interrompida sem conclusão normal.", envelope)
+        if not isinstance(message, dict):
+            raise _generation_failure("OpenRouter retornou message ausente ou inválido.", envelope)
+        content = message.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise _generation_failure(
+                "Resposta sem conteúdo final JSON. "
+                "Tokens de raciocínio não constituem uma proposta.",
+                envelope,
+            )
+        if self._key and self._key in content:
+            raise WorkflowError("Resposta descartada por conter credencial. Nada foi salvo.")
         try:
-            choice = envelope["choices"][0]
-            content = choice["message"]["content"]
-            if (
-                choice.get("finish_reason") != "stop"
-                or not isinstance(content, str)
-                or choice["message"].get("refusal")
-            ):
-                raise ValueError("incomplete response")
-            if self._key and self._key in content:
-                raise WorkflowError("Resposta descartada por conter credencial. Nada foi salvo.")
             proposal = Proposal.model_validate_json(content)
-            if self._key and self._key in proposal.model_dump_json():
-                raise WorkflowError("Resposta descartada por conter credencial. Nada foi salvo.")
-        except (KeyError, IndexError, TypeError, ValueError, ValidationError):
-            raise WorkflowError(
-                "Resposta incompleta, recusada ou fora do schema. Nada foi aplicado; "
-                "não houve retry automático."
+        except ValidationError as error:
+            if any(item["type"] == "json_invalid" for item in error.errors(include_input=False)):
+                raise _generation_failure(
+                    "O modelo retornou JSON inválido, apesar do JSON Schema solicitado. "
+                    "Não houve reparo automático. Revise o contexto ou escolha outro modelo.",
+                    envelope,
+                ) from None
+            raise _generation_failure(
+                "A resposta não atende ao schema da proposta. " + _schema_diagnostic(error) + ". "
+                "Revise o contexto ou escolha outro modelo; os valores recebidos foram omitidos.",
+                envelope,
             ) from None
+        if self._key and self._key in proposal.model_dump_json():
+            raise WorkflowError("Resposta descartada por conter credencial. Nada foi salvo.")
         usage = envelope.get("usage", {})
         metadata = {"requested_model": model}
         # Keep only scalar usage counters; no prompts, reasoning or raw provider responses.

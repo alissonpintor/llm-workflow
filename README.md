@@ -172,6 +172,8 @@ llm-workflow configure . --ai `
 
 A CLI pede consentimento para enviar o contexto e autorizar possível cobrança. Para automação, use `--allow-paid --non-interactive`. `--model fornecedor/modelo` pode substituir o modelo salvo naquela geração. Cada execução faz **no máximo uma chamada de geração**, sem retry ou fallback automático; não há chamadas pagas durante os testes do pacote.
 
+Forneça uma descrição real do seu produto: copiar literalmente um texto como “Descrição do projeto, regras de negócio e stack” não fornece contexto. Esses placeholders conhecidos são recusados localmente antes da chamada. Se houver informação insuficiente, a LLM pode retornar somente perguntas para esclarecimento, sem alterar os módulos existentes.
+
 A proposta inclui regras concretas com instrução, justificativa, exemplo, exceções e verificação, além de pastas e gates por módulo. Há regras de design, segurança e testes obrigatórias no schema. A base curada de engenharia (SOLID/Clean Code/DDD contextual) e segurança permanece presente mesmo sem IA. Uma saída válida no schema **não comprova qualidade técnica ou segurança**.
 
 ```powershell
@@ -211,6 +213,16 @@ A CLI rejeita fontes/citações inexistentes, padrões sem referência a evidên
 `llm preview` mostra a avaliação ainda como PROPOSTA. Após `llm apply --approve`, ela fica no `workflow.yaml` e em `.workflow/generated/rules/domain-assessment.md`, como decisão aprovada pelo usuário. As regras devem respeitar os escopos escolhidos. **A validação comprova estrutura e rastreabilidade, não a verdade da interpretação nem a coerência semântica de todas as regras:** revisão humana continua obrigatória.
 
 O fluxo documental também funciona sem API: a etapa `avaliar-dominio.md` e o template `domain-assessment-template.md` orientam a conversa com qualquer agente. Cada funcionalidade registra `domain-assessment.md`; pode reutilizar a decisão de projeto, mas precisa confirmar sua adequação e aprovação. `validate` exige esse documento aprovado, recomendação definida e zero perguntas bloqueantes antes de liberar o planejamento. Planos antigos precisam incorporar essa avaliação antes de validar na `0.2.0`.
+
+### Falhas de geração
+
+A CLI diferencia resposta truncada, recusa, ausência de JSON final, JSON inválido e violações do schema. Para violações, mostra apenas nomes de campos conhecidos e motivos sanitizados — não o conteúdo recebido, chaves de campos desconhecidos ou raciocínio privado. Nenhuma resposta inválida é salva como proposta e não há reparo/retry automático.
+
+Se houver `finish_reason=length`, o provedor informou que atingiu o limite. Tokens de raciocínio também podem consumir `max_tokens`, deixando pouco ou nenhum espaço para o JSON final, conforme a [documentação OpenRouter](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens). A mensagem inclui somente contadores numéricos de saída/raciocínio quando fornecidos. Antes de repetir, avalie reduzir o escopo ou usar outro modelo; `--max-tokens 16000` é uma opção quando o limite atual é menor, mas pode aumentar o custo e não garante sucesso.
+
+Se houver erro de schema, a chamada foi concluída mas a resposta não atende ao contrato local. O suporte anunciado a `structured_outputs` não garante todas as restrições semânticas do workflow em todos os endpoints. Não presuma que aumentar tokens resolve esse caso. Revise contexto/modelo antes de autorizar outra geração; uma chamada recusada, truncada ou inválida ainda pode ter sido cobrada.
+
+`llm setup` informa se `OPENROUTER_API_KEY` está visível no processo, sem exibi-la, consultar o saldo ou validar a credencial remotamente. `.env` não é carregado automaticamente. No Windows, alterações de ambiente só ficam disponíveis em novos processos; reinicie também o editor quando ele hospedar o terminal.
 
 ### Dados enviados e cobrança
 

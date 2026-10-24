@@ -13,6 +13,7 @@ from .ai_workflow import (
     proposal_report,
     read_record,
     safe_display,
+    validate_brief,
 )
 from .config import WorkflowError, load_config
 from .openrouter import OpenRouter
@@ -37,7 +38,13 @@ def setup(args: argparse.Namespace) -> int:
     config["ai"] = {"provider": "openrouter", "model": model, "max_output_tokens": args.max_tokens}
     materialize(root, config)
     print("OpenRouter configurado sem chave em arquivo e sem chamada de geração.")
-    print("Defina OPENROUTER_API_KEY no ambiente antes de usar configure --ai.")
+    if os.environ.get("OPENROUTER_API_KEY", "").strip():
+        print("OPENROUTER_API_KEY detectada neste processo; validade não verificada na API.")
+    else:
+        print(
+            "OPENROUTER_API_KEY não está visível neste processo; defina-a antes de configure --ai."
+        )
+    print("Arquivos .env não são carregados automaticamente.")
     return 0
 
 
@@ -71,6 +78,7 @@ def configure(args: argparse.Namespace) -> int:
         if not sys.stdin.isatty():
             raise WorkflowError("Informe --brief descrevendo objetivo, arquitetura e restrições.")
         brief = input("Descreva o projeto, stack, arquitetura desejada e restrições: ").strip()
+    validate_brief(brief)
     max_tokens = (
         args.max_tokens if args.max_tokens is not None else settings.get("max_output_tokens", 8000)
     )

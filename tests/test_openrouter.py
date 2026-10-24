@@ -645,3 +645,160 @@ def test_domain_questions_block_then_resume_with_cited_answers(tmp_path, draft):
     context = json.loads(json.loads(seen[0].content)["messages"][1]["content"])
     assert context["domain_sources"]["Q-01"] == "Cadastro sem regras além dos campos."
     assert main(["llm", "apply", str(tmp_path), "--approve"]) == 0
+
+
+def test_truncation_reports_token_limit_without_exposing_output(draft):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {"content": "partial private output"},
+                    }
+                ]
+            },
+        )
+
+    client = OpenRouter(api_key=TEST_KEY, transport=httpx.MockTransport(handler))
+    with pytest.raises(WorkflowError) as error:
+        client.generate(model="vendor/model", system="safe", context={}, max_tokens=8000)
+    message = str(error.value)
+    assert "truncada" in message
+    assert "8000" in message
+    assert "raciocínio" in message
+    assert "partial private output" not in message
+    assert len(seen) == 1
+
+
+def test_schema_diagnostics_identify_fields_without_echoing_values(draft):
+    del draft["modules"][0]["rules"][0]["instruction"]
+    draft["private-extra-field"] = "private-value-do-not-display"
+    client = client_for(draft)
+    with pytest.raises(WorkflowError) as error:
+        client.generate(model="vendor/model", system="safe", context={})
+    message = str(error.value)
+    assert "modules[0].rules[0].instruction" in message
+    assert "obrigatório" in message
+    assert "private-extra-field" not in message
+    assert "private-value-do-not-display" not in message
+
+
+@pytest.mark.parametrize(
+    "choice,expected",
+    [
+        ({"finish_reason": "stop", "message": {"refusal": "private refusal reason"}}, "recusada"),
+        ({"finish_reason": "content_filter", "message": {"content": None}}, "recusada"),
+        (
+            {
+                "finish_reason": "stop",
+                "message": {"content": None, "reasoning": "private reasoning"},
+            },
+            "raciocínio",
+        ),
+        (
+            {"finish_reason": "stop", "message": {"content": "not JSON private text"}},
+            "JSON inválido",
+        ),
+    ],
+)
+def test_failure_categories_are_distinct_and_redacted(choice, expected):
+    client = OpenRouter(
+        api_key=TEST_KEY,
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"choices": [choice]})),
+    )
+    with pytest.raises(WorkflowError) as error:
+        client.generate(model="vendor/model", system="safe", context={})
+    assert expected in str(error.value)
+    assert "private" not in str(error.value)
+
+
+def test_semantic_schema_errors_explain_category_requirements(draft):
+    draft["modules"][0]["rules"][0]["category"] = "framework"
+    with pytest.raises(WorkflowError) as error:
+        client_for(draft).generate(model="vendor/model", system="safe", context={})
+    assert "modules[0]" in str(error.value)
+    assert "design, segurança e testes" in str(error.value)
+
+
+def test_truncation_only_shows_allowlisted_usage_counters():
+    response = {
+        "choices": [{"finish_reason": "length", "message": {"content": None}}],
+        "usage": {
+            "completion_tokens": 8000,
+            "private_field": TEST_KEY,
+            "completion_tokens_details": {"reasoning_tokens": 7999, "private": TEST_KEY},
+        },
+    }
+    client = OpenRouter(
+        api_key=TEST_KEY,
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=response)),
+    )
+    with pytest.raises(WorkflowError) as error:
+        client.generate(model="vendor/model", system="safe", context={})
+    assert "saída=8000" in str(error.value)
+    assert "raciocínio=7999" in str(error.value)
+    assert TEST_KEY not in str(error.value)
+
+
+def test_copied_example_brief_is_rejected_before_consent_or_network(tmp_path, monkeypatch, capsys):
+    assert main(["init", str(tmp_path)]) == 0
+    monkeypatch.setenv("OPENROUTER_API_KEY", TEST_KEY)
+    before = snapshot(tmp_path)
+    assert (
+        main(
+            [
+                "configure",
+                str(tmp_path),
+                "--ai",
+                "--model",
+                "vendor/model",
+                "--brief",
+                "Descrição do projeto, regras de negócio e stack",
+                "--non-interactive",
+            ]
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert "texto de exemplo" in captured.err
+    assert "Destino:" not in captured.out
+    assert snapshot(tmp_path) == before
+
+
+def test_setup_reports_env_presence_without_reading_dotenv(tmp_path, monkeypatch, capsys):
+    assert main(["init", str(tmp_path)]) == 0
+    (tmp_path / ".env").write_text(f"OPENROUTER_API_KEY={TEST_KEY}\n", encoding="utf-8")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    capsys.readouterr()
+    assert main(["llm", "setup", str(tmp_path), "--model", "vendor/model"]) == 0
+    output = capsys.readouterr().out
+    assert "não está visível neste processo" in output
+    assert ".env não são carregados" in output
+    monkeypatch.setenv("OPENROUTER_API_KEY", TEST_KEY)
+    assert main(["llm", "setup", str(tmp_path), "--model", "vendor/model"]) == 0
+    output = capsys.readouterr().out
+    assert "detectada neste processo" in output
+    assert "validade não verificada" in output
+    assert TEST_KEY not in output
+
+
+def test_question_only_response_remains_valid_and_does_not_apply(tmp_path, draft):
+    assert main(["init", str(tmp_path)]) == 0
+    before = snapshot(tmp_path)
+    draft.update(
+        modules=[],
+        domain_assessments=[],
+        questions=[
+            {"id": "Q-01", "question": "Quais são os processos de negócio e a stack desejada?"}
+        ],
+    )
+    record = generate(tmp_path, draft)
+    assert record.proposal.questions
+    after = snapshot(tmp_path)
+    assert {k: v for k, v in after.items() if k != PROPOSAL_PATH} == before
+    assert main(["llm", "apply", str(tmp_path), "--approve"]) == 2
