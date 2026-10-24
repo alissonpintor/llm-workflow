@@ -105,12 +105,31 @@ def draft():
 
 
 def envelope(draft):
+    if draft["questions"]:
+        result = {
+            "kind": "questions",
+            **{key: draft[key] for key in ("architecture", "rationale", "questions")},
+        }
+    else:
+        result = copy.deepcopy({"kind": "proposal", **draft})
+        for module in result["modules"]:
+            rules = module["rules"]
+            sections = {
+                "additional": [
+                    r for r in rules if r["category"] not in {"design", "security", "testing"}
+                ]
+            }
+            for category in ("design", "security", "testing"):
+                matches = [r for r in rules if r["category"] == category]
+                if matches:
+                    sections[category] = {k: v for k, v in matches[0].items() if k != "category"}
+            module["rules"] = sections
     return {
         "choices": [
             {
                 "finish_reason": "stop",
                 "message": {
-                    "content": json.dumps(draft, ensure_ascii=False),
+                    "content": json.dumps({"result": result}, ensure_ascii=False),
                 },
             }
         ],
@@ -492,9 +511,9 @@ def test_unicode_escaped_credential_cannot_be_persisted(tmp_path, draft):
     assert main(["init", str(tmp_path)]) == 0
     draft["assumptions"] = [TEST_KEY]
     response = envelope(draft)
-    response["choices"][0]["message"]["content"] = json.dumps(draft).replace(
-        TEST_KEY, "\\u0075" + TEST_KEY[1:]
-    )
+    response["choices"][0]["message"]["content"] = response["choices"][0]["message"][
+        "content"
+    ].replace(TEST_KEY, "\\u0075" + TEST_KEY[1:])
     client = OpenRouter(
         api_key=TEST_KEY,
         transport=httpx.MockTransport(lambda _: httpx.Response(200, json=response)),
@@ -682,7 +701,7 @@ def test_schema_diagnostics_identify_fields_without_echoing_values(draft):
     with pytest.raises(WorkflowError) as error:
         client.generate(model="vendor/model", system="safe", context={})
     message = str(error.value)
-    assert "modules[0].rules[0].instruction" in message
+    assert "modules[0].rules.design.instruction" in message
     assert "obrigatório" in message
     assert "private-extra-field" not in message
     assert "private-value-do-not-display" not in message
@@ -722,7 +741,8 @@ def test_semantic_schema_errors_explain_category_requirements(draft):
     with pytest.raises(WorkflowError) as error:
         client_for(draft).generate(model="vendor/model", system="safe", context={})
     assert "modules[0]" in str(error.value)
-    assert "design, segurança e testes" in str(error.value)
+    assert "rules.design" in str(error.value)
+    assert "obrigatório" in str(error.value)
 
 
 def test_truncation_only_shows_allowlisted_usage_counters():
@@ -802,3 +822,102 @@ def test_question_only_response_remains_valid_and_does_not_apply(tmp_path, draft
     after = snapshot(tmp_path)
     assert {k: v for k, v in after.items() if k != PROPOSAL_PATH} == before
     assert main(["llm", "apply", str(tmp_path), "--approve"]) == 2
+
+
+def test_clarification_wire_response_cannot_require_speculative_modules():
+    result = {
+        "kind": "questions",
+        "architecture": "Decisão pendente de contexto do negócio",
+        "rationale": "Precisamos conhecer os processos antes de gerar regras ou estruturas.",
+        "questions": [{"id": "Q-01", "question": "Quais são os processos e regras deste produto?"}],
+    }
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": json.dumps({"result": result})},
+                    }
+                ]
+            },
+        )
+
+    client = OpenRouter(api_key=TEST_KEY, transport=httpx.MockTransport(handler))
+    proposal, _ = client.generate(model="vendor/model", system="safe", context={})
+    assert [q.id for q in proposal.questions] == ["Q-01"]
+    assert proposal.modules == []
+    assert proposal.domain_assessments == []
+    schema = json.loads(seen[0].content)["response_format"]["json_schema"]["schema"]
+    branches = schema["properties"]["result"]["anyOf"]
+    options = [schema["$defs"][branch["$ref"].split("/")[-1]] for branch in branches]
+    questions = next(
+        option for option in options if option["properties"]["kind"].get("const") == "questions"
+    )
+    assert "modules" not in questions["properties"]
+    assert "profiles" not in questions["properties"]
+    assert questions["additionalProperties"] is False
+
+
+def test_clarification_does_not_silently_accept_a_speculative_draft():
+    result = {
+        "kind": "questions",
+        "architecture": "Decisão pendente de contexto do negócio",
+        "rationale": "Precisamos conhecer os processos antes de gerar regras ou estruturas.",
+        "questions": [{"id": "Q-01", "question": "Quais são os processos e regras deste produto?"}],
+        "modules": [{"name": "speculative"}],
+    }
+    client = OpenRouter(
+        api_key=TEST_KEY,
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {"content": json.dumps({"result": result})},
+                        }
+                    ]
+                },
+            )
+        ),
+    )
+    with pytest.raises(WorkflowError, match="schema"):
+        client.generate(model="vendor/model", system="safe", context={})
+
+
+def test_wire_contract_encodes_rule_categories_and_citation_options(draft):
+    seen = []
+    client_for(draft, seen).generate(
+        model="vendor/model",
+        system="safe",
+        context={
+            "domain_sources": {"BRIEF": "API de pedidos com invariantes. Pedidos possuem estados."}
+        },
+    )
+    schema = json.loads(seen[0].content)["response_format"]["json_schema"]["schema"]
+    sections = schema["$defs"]["RuleSections"]
+    assert {"design", "security", "testing"}.issubset(sections["required"])
+    evidence = schema["$defs"]["ConclusiveAssessment"]["properties"]["evidence"]
+    assert evidence["minItems"] == 1
+    quote = schema["$defs"]["DomainEvidence"]["properties"]["quote"]
+    assert quote["enum"] == ["API de pedidos com invariantes.", "Pedidos possuem estados."]
+    refs = schema["$defs"]["DomainPattern"]["properties"]["evidence_ids"]["items"]
+    assert refs["pattern"] == r"^E-[0-9]{2,}$"
+
+
+def test_continuation_contract_does_not_offer_the_short_interview_branch(draft):
+    seen = []
+    proposal, _ = client_for(draft, seen).generate(
+        model="vendor/model",
+        system="safe",
+        context={"answers": ["Q-01=CRUD simples sem aprovações adicionais"]},
+    )
+    assert not proposal.questions
+    schema = json.loads(seen[0].content)["response_format"]["json_schema"]["schema"]
+    assert schema["properties"]["result"] == {"$ref": "#/$defs/CompleteResponse"}

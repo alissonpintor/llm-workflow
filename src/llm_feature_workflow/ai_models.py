@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -12,14 +12,17 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
-class Rule(StrictModel):
-    category: Literal["design", "security", "testing", "framework", "operations"]
+class RuleContent(StrictModel):
     title: str = Field(min_length=3, max_length=150)
     instruction: str = Field(min_length=30, max_length=3000)
     rationale: str = Field(min_length=10, max_length=1000)
     example: str = Field(min_length=10, max_length=2000)
     exceptions: str = Field(min_length=3, max_length=1000)
     verification: str = Field(min_length=10, max_length=1000)
+
+
+class Rule(RuleContent):
+    category: Literal["design", "security", "testing", "framework", "operations"]
 
 
 class Question(StrictModel):
@@ -48,11 +51,19 @@ class DomainPattern(StrictModel):
     candidate: str = Field(min_length=2, max_length=150)
     rationale: str = Field(min_length=20, max_length=2000)
     costs: str = Field(min_length=10, max_length=2000)
-    evidence_ids: list[str] = Field(min_length=1, max_length=10)
+    evidence_ids: list[Annotated[str, Field(pattern=r"^E-[0-9]{2,}$")]] = Field(
+        min_length=1,
+        max_length=10,
+        description="IDs E-XX da lista evidence local. Nunca IDs de fontes BRIEF ou Q-XX.",
+    )
 
 
 class SimplerAlternative(StrictModel):
-    approach: str = Field(min_length=10, max_length=2000)
+    approach: str = Field(
+        min_length=10,
+        max_length=2000,
+        description="Alternativa MAIS SIMPLES que a decisão escolhida; não DDD complexo para CRUD.",
+    )
     tradeoffs: str = Field(min_length=20, max_length=2000)
 
 
@@ -198,6 +209,92 @@ class Proposal(StrictModel):
             {q.id for q in self.questions},
         )
         return self
+
+
+class ClarificationResponse(StrictModel):
+    """Clarification cannot contain speculative rules, folders or module drafts."""
+
+    kind: Literal["questions"]
+    architecture: str = Field(min_length=10, max_length=1000)
+    rationale: str = Field(min_length=30, max_length=1500)
+    questions: list[Question] = Field(min_length=1, max_length=12)
+
+
+class RuleSections(StrictModel):
+    design: RuleContent
+    security: RuleContent
+    testing: RuleContent
+    additional: list[Rule] = Field(max_length=3)
+
+
+class ModuleResponse(StrictModel):
+    name: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")
+    kind: Kind
+    path: str = Field(min_length=1, max_length=180)
+    profiles: list[str] = Field(min_length=1, max_length=12)
+    uses: list[str] = Field(max_length=20)
+    rules: RuleSections
+    folders: list[Folder] = Field(min_length=2, max_length=40)
+    gates: list[Gate] = Field(min_length=1, max_length=15)
+
+
+class ConclusiveAssessment(DomainAssessment):
+    recommendation: Literal["simple_design", "strategic_ddd", "selective_ddd"]
+    evidence: list[DomainEvidence] = Field(min_length=1, max_length=12)
+    blocking_question_ids: list[str] = Field(max_length=0)
+    suggested_patterns: list[DomainPattern] = Field(
+        max_length=12,
+        description="Para simple_design use []. Não inclua MVC ou padrões genéricos aqui.",
+    )
+
+
+class CompleteResponse(Proposal):
+    kind: Literal["proposal"]
+    modules: list[ModuleResponse] = Field(max_length=12)
+    domain_assessments: list[ConclusiveAssessment] = Field(max_length=30)
+
+
+class GenerationResponse(StrictModel):
+    result: ClarificationResponse | CompleteResponse = Field(discriminator="kind")
+
+    def to_proposal(self) -> Proposal:
+        if isinstance(self.result, ClarificationResponse):
+            return Proposal(
+                architecture=self.result.architecture,
+                rationale=self.result.rationale,
+                questions=self.result.questions,
+                assumptions=[],
+                profiles=[],
+                modules=[],
+                services=[],
+                domain_assessments=[],
+            )
+        data = self.result.model_dump(exclude={"kind"})
+        for module in data["modules"]:
+            sections = module["rules"]
+            module["rules"] = [
+                {**sections[category], "category": category}
+                for category in ("design", "security", "testing")
+            ] + sections["additional"]
+        return Proposal.model_validate(data)
+
+
+class ContinuationResponse(GenerationResponse):
+    # Once pending questions were answered, don't let the model choose the shorter interview
+    # branch by copying answers back into questions. New blockers still belong in questions.
+    result: CompleteResponse
+
+
+def generation_schema(*, continuation: bool = False) -> dict:
+    response_model = ContinuationResponse if continuation else GenerationResponse
+    schema = response_model.model_json_schema()
+    # A tagged anyOf under an object is accepted by more strict-output providers than oneOf.
+    # Local parsing still uses the discriminator and never guesses or repairs a branch.
+    result = schema["properties"]["result"]
+    if "oneOf" in result:
+        result["anyOf"] = result.pop("oneOf")
+        result.pop("discriminator", None)
+    return schema
 
 
 def render_rules(rules: list[Rule]) -> str:

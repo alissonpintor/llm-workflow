@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from typing import Any
 
 import httpx
 from pydantic import ValidationError
 
-from .ai_models import Proposal, valid_model_id
+from .ai_models import (
+    ContinuationResponse,
+    GenerationResponse,
+    Proposal,
+    generation_schema,
+    valid_model_id,
+)
 from .config import WorkflowError
 
 BASE_URL = "https://openrouter.ai/api/v1"
@@ -17,7 +24,7 @@ MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
 # Only schema-owned labels and known validator messages may enter diagnostics.
 # Pydantic's full errors can include input values, JSON excerpts and unknown extra keys.
-_SCHEMA = Proposal.model_json_schema()
+_SCHEMA = generation_schema()
 _FIELD_NAMES = {
     name
     for node in [_SCHEMA, *_SCHEMA.get("$defs", {}).values()]
@@ -53,6 +60,8 @@ _ERROR_LABELS = {
     "list_type": "lista esperada",
     "string_type": "texto esperado",
     "model_type": "objeto esperado",
+    "union_tag_invalid": "tipo de resposta fora das opções permitidas",
+    "union_tag_not_found": "tipo de resposta obrigatório ausente",
 }
 
 
@@ -169,6 +178,28 @@ class OpenRouter:
             self._key in json.dumps(context, ensure_ascii=False) or self._key in system
         ):
             raise WorkflowError("O contexto contém a credencial. Remova-a antes de continuar.")
+        continuation = isinstance(context.get("answers"), list) and bool(context["answers"])
+        if continuation:
+            system += (
+                "\nRETOMADA APÓS RESPOSTAS: use result.kind=proposal e o formato completo. "
+                "Não devolva respostas como perguntas. Se surgiu um bloqueio novo, registre-o "
+                "em questions com ID novo e deixe os arrays de rascunho vazios; nunca invente "
+                "dados para completar a proposta. Se não há bloqueios, questions deve ser []."
+            )
+        schema = generation_schema(continuation=continuation)
+        sources = context.get("domain_sources", {})
+        quotes = []
+        if isinstance(sources, dict):
+            for text in sources.values():
+                if not isinstance(text, str):
+                    continue
+                for sentence in re.split(r"(?<=[.!?])\s+|\n", text):
+                    for start in range(0, len(sentence), 2000):
+                        excerpt = sentence[start : start + 2000].strip()
+                        if len(excerpt) >= 10 and excerpt not in quotes:
+                            quotes.append(excerpt)
+        if quotes:
+            schema["$defs"]["DomainEvidence"]["properties"]["quote"]["enum"] = quotes[:80]
         payload = {
             "model": model,
             "messages": [
@@ -187,7 +218,7 @@ class OpenRouter:
                 "json_schema": {
                     "name": "workflow_proposal",
                     "strict": True,
-                    "schema": Proposal.model_json_schema(),
+                    "schema": schema,
                 },
             },
         }
@@ -224,7 +255,9 @@ class OpenRouter:
         if self._key and self._key in content:
             raise WorkflowError("Resposta descartada por conter credencial. Nada foi salvo.")
         try:
-            proposal = Proposal.model_validate_json(content)
+            response_model = ContinuationResponse if continuation else GenerationResponse
+            response = response_model.model_validate_json(content)
+            proposal = response.to_proposal()
         except ValidationError as error:
             if any(item["type"] == "json_invalid" for item in error.errors(include_input=False)):
                 raise _generation_failure(

@@ -216,6 +216,10 @@ O fluxo documental também funciona sem API: a etapa `avaliar-dominio.md` e o te
 
 ### Falhas de geração
 
+A entrevista e a proposta completa usam contratos de rede distintos. Quando faltar contexto, a resposta curta contém apenas perguntas e justificativa, sem regras ou pastas especulativas. Após respostas, o formato de proposta permite prosseguir ou registrar novos bloqueios. O contrato exige seções de design, segurança e testes, evidências conclusivas não vazias e opções de citação literal derivadas do contexto. As relações semânticas continuam sujeitas à validação local e revisão humana.
+
+Um diagnóstico com chamadas reais e dados sintéticos está em [docs/openrouter-live-validation.md](docs/openrouter-live-validation.md), incluindo custos, falhas observadas e limites da validação. O suporte a JSON Schema não garante todas as relações entre campos nem adequação arquitetural.
+
 A CLI diferencia resposta truncada, recusa, ausência de JSON final, JSON inválido e violações do schema. Para violações, mostra apenas nomes de campos conhecidos e motivos sanitizados — não o conteúdo recebido, chaves de campos desconhecidos ou raciocínio privado. Nenhuma resposta inválida é salva como proposta e não há reparo/retry automático.
 
 Se houver `finish_reason=length`, o provedor informou que atingiu o limite. Tokens de raciocínio também podem consumir `max_tokens`, deixando pouco ou nenhum espaço para o JSON final, conforme a [documentação OpenRouter](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens). A mensagem inclui somente contadores numéricos de saída/raciocínio quando fornecidos. Antes de repetir, avalie reduzir o escopo ou usar outro modelo; `--max-tokens 16000` é uma opção quando o limite atual é menor, mas pode aumentar o custo e não garante sucesso.

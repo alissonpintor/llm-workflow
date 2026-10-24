@@ -2,6 +2,7 @@
 
 ## 0.2.0 — em desenvolvimento
 
+- Diagnóstico real com DeepSeek V4 Flash/V3.2 e contexto sintético: separação entre entrevista e proposta, categorias obrigatórias no contrato e citações limitadas a trechos fornecidos.
 - Diagnósticos de geração distinguem truncamento, recusa, JSON inválido e violações sanitizadas do schema, sem exibir conteúdo privado ou repetir chamadas.
 - Setup informa presença da chave no processo sem autenticação remota; placeholders de brief são recusados antes do envio.
 - OpenRouter opcional em `configure --ai`, com escolha de modelo, JSON Schema e chave somente no ambiente/entrada oculta.
