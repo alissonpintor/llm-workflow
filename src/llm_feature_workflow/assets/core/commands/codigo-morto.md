@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Audita símbolos sem uso e plugins estáticos sem remover código automaticamente
----
+# Audita símbolos sem uso e plugins estáticos sem remover código automaticamente
 
 Identifique candidatos usando referências no repositório, análise estática configurada e plugins aplicáveis. Rastreie interfaces, registros dinâmicos, reflexão, testes e integrações antes de confirmar falta de uso.
 

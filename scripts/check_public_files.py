@@ -5,11 +5,13 @@ This is a focused pre-publication safeguard, not a complete secret scanner.
 
 from __future__ import annotations
 
+import argparse
 import re
 import subprocess
 from pathlib import Path
 
 RULES = {
+    "OpenRouter key": re.compile(r"\bsk-or-v1-[A-Za-z0-9]{32,}\b"),
     "GitHub token": re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}\b|\bgithub_pat_[A-Za-z0-9_]{30,}"),
     "private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"),
     "AWS access key": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
@@ -19,8 +21,14 @@ RULES = {
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--include-untracked", action="store_true")
+    args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    result = subprocess.run(["git", "ls-files", "-z"], cwd=root, check=True, capture_output=True)
+    command = ["git", "ls-files", "-z", "--cached"]
+    if args.include_untracked:
+        command.extend(["--others", "--exclude-standard"])
+    result = subprocess.run(command, cwd=root, check=True, capture_output=True)
     paths = [value.decode("utf-8") for value in result.stdout.split(b"\0") if value]
     problems: list[str] = []
     for relative in paths:
@@ -51,7 +59,7 @@ def main() -> int:
                     problems.append(f"{relative}:{number}: {label}")
     for problem in problems:
         print(problem)
-    print(f"Public-file audit: {len(paths)} tracked files, {len(problems)} finding(s).")
+    print(f"Public-file audit: {len(paths)} candidate files, {len(problems)} finding(s).")
     return 1 if problems else 0
 
 

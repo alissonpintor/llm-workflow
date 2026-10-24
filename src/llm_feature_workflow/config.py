@@ -68,7 +68,7 @@ def default_config(root: Path, agents: list[str] | None = None) -> dict[str, Any
             "status": "stack-undecided",
             "architecture": "undecided",
         },
-        "agents": {"targets": agents or ["agents", "grok", "zcode"]},
+        "agents": {"targets": list(agents) if agents is not None else []},
         "modules": {},
         "services": {},
         "plugins": [],

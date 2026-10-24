@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Cria UI/UX Spec quando a feature possui interface relevante
----
+# Cria UI/UX Spec quando a feature possui interface relevante
 
 Explore design system, componentes, tokens, telas e testes existentes. Não invente identidade visual quando não houver fonte.
 

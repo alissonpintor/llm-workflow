@@ -1,7 +1,7 @@
----
-trigger: manual
-description: Faz lint e review semântico antes de READY
----
+# Faz lint e review semântico antes de READY
+
+Exija `domain-assessment.md` aprovado, sem perguntas bloqueantes e coerente com a Tech Spec.
+O lint verifica estrutura e declarações; o review confere citações, interpretações e adequação.
 
 1. Execute `llm-workflow validate . tasks/prd-[slug]`.
 2. Faça review semântico da rastreabilidade `RF/NFR → DEC → task → TEST`.

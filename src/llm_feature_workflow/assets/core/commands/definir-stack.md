@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Decide a stack inicial e prepara a configuração tecnológica do projeto
----
+# Decide a stack inicial e prepara a configuração tecnológica do projeto
 
 Você é o arquiteto de descoberta inicial. O produto pode ser discutido antes da stack, mas Tech Specs ficam bloqueadas enquanto `project.status` for `stack-undecided` em `.workflow/workflow.yaml`.
 

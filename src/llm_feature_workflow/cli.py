@@ -62,14 +62,31 @@ def _interactive_modules() -> tuple[list[str], list[str], list[str]]:
 
 def cmd_configure(args: argparse.Namespace) -> int:
     root = root_path(args.path)
+    if args.ai:
+        from .ai_cli import configure
+
+        args.path = root
+        return configure(args)
     raw_config = read_yaml(root_path(args.config)) if args.config else load_config(root)
     config = normalize_config(root, raw_config)
-    registry = load_profiles()
+    if args.portable:
+        config["agents"]["targets"] = []
+    elif args.agents is not None:
+        config["agents"]["targets"] = args.agents
+    registry = load_profiles(root)
     plugin_registry = load_plugins()
     module_values = list(args.module)
     service_values = list(args.service)
     uses_values = list(args.uses)
-    supplied = (module_values, service_values, uses_values, args.plugin, args.setting)
+    supplied = (
+        module_values,
+        service_values,
+        uses_values,
+        args.plugin,
+        args.setting,
+        args.portable,
+        args.agents is not None,
+    )
     if not args.non_interactive and not any(supplied):
         if not sys.stdin.isatty():
             raise WorkflowError("Sem terminal interativo; use --non-interactive ou forneça opções.")
@@ -81,6 +98,7 @@ def cmd_configure(args: argparse.Namespace) -> int:
         validate_kind(spec.kind, resolved, registry)
         previous = config.get("modules", {}).get(spec.name, {})
         config.setdefault("modules", {})[spec.name] = {
+            **previous,
             "kind": spec.kind,
             "path": previous.get("path", spec.name),
             "requested_profiles": spec.profiles,
@@ -226,8 +244,8 @@ def cmd_diff(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_profiles(_args: argparse.Namespace) -> int:
-    registry = load_profiles()
+def cmd_profiles(args: argparse.Namespace) -> int:
+    registry = load_profiles(root_path(args.path))
     by_category: dict[str, list[str]] = {}
     for profile in registry.values():
         by_category.setdefault(profile.category, []).append(profile.id)
@@ -244,7 +262,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     init = sub.add_parser("init", help="Inicializa o núcleo em um projeto")
     init.add_argument("path", nargs="?", default=".")
-    init.add_argument("--agents", nargs="+", default=["agents", "grok", "zcode"])
+    init_targets = init.add_mutually_exclusive_group()
+    init_targets.add_argument(
+        "--agents",
+        nargs="+",
+        default=[],
+        help="Adaptadores opcionais; padrão sem pastas de harness",
+    )
+    init_targets.add_argument("--portable", action="store_true", help="Somente núcleo portátil")
     init.add_argument("--force", action="store_true")
     init.set_defaults(func=cmd_init)
 
@@ -257,6 +282,23 @@ def build_parser() -> argparse.ArgumentParser:
     configure.add_argument("--plugin", action="append", default=[])
     configure.add_argument("--non-interactive", action="store_true")
     configure.add_argument("--config", help="Importa uma configuração YAML declarativa")
+    configure.add_argument("--ai", action="store_true", help="Propõe workflow via OpenRouter")
+    configure.add_argument("--model", help="ID do modelo no OpenRouter")
+    configure.add_argument(
+        "--brief", help="Descrição do projeto enviada à LLM; não inclua segredos"
+    )
+    configure.add_argument("--answer", action="append", default=[], help="Resposta Q-01=texto")
+    configure.add_argument(
+        "--allow-paid", action="store_true", help="Autoriza envio e possível custo"
+    )
+    configure.add_argument("--max-tokens", type=int)
+    configure_targets = configure.add_mutually_exclusive_group()
+    configure_targets.add_argument("--agents", nargs="+", help="Seleciona adaptadores opcionais")
+    configure_targets.add_argument(
+        "--portable",
+        action="store_true",
+        help="Desativa adaptadores, preservando arquivos modificados",
+    )
     configure.set_defaults(func=cmd_configure)
 
     for name, help_text, function in (
@@ -275,7 +317,11 @@ def build_parser() -> argparse.ArgumentParser:
     validate.set_defaults(func=cmd_validate)
 
     profiles = sub.add_parser("profiles", help="Lista perfis e plugins disponíveis")
+    profiles.add_argument("path", nargs="?", default=".")
     profiles.set_defaults(func=cmd_profiles)
+    from .ai_cli import add_llm_parser
+
+    add_llm_parser(sub)
     return parser
 
 

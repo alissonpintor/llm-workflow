@@ -9,6 +9,14 @@ TASK = re.compile(r"^- \[[ xX]\] (\d+)\.0\s+", re.MULTILINE)
 PLACEHOLDER = re.compile(r"\b(?:TBD|TODO)\b|\[(?:preencher|nome|descri[cç][aã]o|item)\]", re.I)
 
 HEADINGS = {
+    "domain-assessment.md": [
+        "Escopo e Recomendação",
+        "Evidências do Usuário",
+        "Padrões, Benefícios e Custos",
+        "Alternativa Mais Simples",
+        "Perguntas Abertas",
+        "Aprovação",
+    ],
     "discovery.md": ["Evidências e Fontes", "Casos de Borda Candidatos", "Perguntas Abertas"],
     "prd.md": [
         "Problema e Evidências",
@@ -67,7 +75,7 @@ class ValidationResult:
 def validate_feature(directory: Path) -> ValidationResult:
     errors: list[str] = []
     warnings: list[str] = []
-    required = ["discovery.md", "prd.md", "techspec.md", "tasks.md"]
+    required = ["discovery.md", "prd.md", "domain-assessment.md", "techspec.md", "tasks.md"]
     texts: dict[str, str] = {}
     for name in required:
         path = directory / name
@@ -86,6 +94,18 @@ def validate_feature(directory: Path) -> ValidationResult:
             errors.append(f"review ausente: reviews/{review}")
         elif not re.search(r"^-?\s*Status:\s*APROVADO\s*$", path.read_text(encoding="utf-8"), re.M):
             errors.append(f"review não aprovado: reviews/{review}")
+
+    domain = texts["domain-assessment.md"]
+    if not re.search(r"^- Status: APROVADO\s*$", domain, re.M):
+        errors.append("domain-assessment.md: aprovação humana pendente")
+    if not re.search(r"^- Perguntas bloqueantes: 0\s*$", domain, re.M):
+        errors.append("domain-assessment.md: perguntas bloqueantes pendentes")
+    if not re.search(
+        r"^- Recomendação: (simple_design|strategic_ddd|selective_ddd)\s*$", domain, re.M
+    ):
+        errors.append("domain-assessment.md: recomendação ausente ou contexto insuficiente")
+    if not re.search(r"\b(BRIEF|Q-\d{2,}|EVD-\d{2,})\b", section(domain, "Evidências do Usuário")):
+        errors.append("domain-assessment.md: fonte do usuário ausente")
 
     requirements = set(REQUIREMENT.findall(texts["prd.md"]))
     if not requirements:

@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Valida jornadas e critérios de aceite sem alterar produto
----
+# Valida jornadas e critérios de aceite sem alterar produto
 
 Planeje a sessão a partir dos AC/RF/NFR e das plataformas do projeto. Use as ferramentas de teste configuradas, não uma ferramenta de browser obrigatória em projetos sem UI web.
 

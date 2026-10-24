@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Revisa uma task contra TASK_BASE_SHA
----
+# Revisa uma task contra TASK_BASE_SHA
 
 Você é reviewer independente e read-only para produto. Use exatamente `git diff TASK_BASE_SHA`, leia arquivos completos e procure arquivos esperados ausentes.
 

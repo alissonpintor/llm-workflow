@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Implementa uma task candidata a review
----
+# Implementa uma task candidata a review
 
 Implemente uma única task a partir do `TASK_BASE_SHA` fornecido.
 

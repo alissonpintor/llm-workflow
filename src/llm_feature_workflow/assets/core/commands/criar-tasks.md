@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Decompõe planejamento aprovado em entregáveis rastreáveis
----
+# Decompõe planejamento aprovado em entregáveis rastreáveis
 
 Não implemente código. Mostre primeiro uma matriz high-level com entregável, RF/NFR, DEC/TEST, dependências e paralelismo; aguarde aprovação humana.
 

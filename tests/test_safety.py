@@ -58,7 +58,7 @@ def test_tampered_lock_cannot_remove_external_file(tmp_path: Path) -> None:
 
 
 def test_yaml_edit_resolves_profiles_and_removes_obsolete_rules(tmp_path: Path) -> None:
-    assert main(["init", str(tmp_path)]) == 0
+    assert main(["init", str(tmp_path), "--agents", "agents"]) == 0
     assert (
         main(["configure", str(tmp_path), "--module", "api:backend=fastapi", "--non-interactive"])
         == 0
@@ -82,7 +82,7 @@ def test_unmanaged_collision_does_not_create_configuration(tmp_path: Path) -> No
 
 
 def test_command_frontmatter_stays_at_start(tmp_path: Path) -> None:
-    assert main(["init", str(tmp_path)]) == 0
+    assert main(["init", str(tmp_path), "--agents", "agents"]) == 0
     text = (tmp_path / ".agents/rules/commands/criar-prd.md").read_text(encoding="utf-8")
     assert text.startswith("---\n")
 

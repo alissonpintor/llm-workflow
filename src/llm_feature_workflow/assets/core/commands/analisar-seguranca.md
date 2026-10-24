@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Audita riscos de segurança conforme o escopo e os perfis ativos
----
+# Audita riscos de segurança conforme o escopo e os perfis ativos
 
 Faça auditoria somente-leitura do escopo solicitado. Leia política, perfis e arquitetura; não extraia nem divulgue valores secretos.
 

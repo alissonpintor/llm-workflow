@@ -19,6 +19,7 @@ from .config import (
     save_config,
     save_lock,
 )
+from .portable import adapter_document, step_document
 from .profiles import Plugin, Profile, load_plugins, load_profiles
 from .project import normalize_config
 
@@ -90,6 +91,8 @@ def _module_context(config: dict[str, Any], registry: dict[str, Profile]) -> tup
             defaults = dict(profile.defaults)
             defaults.update(settings)
             for gate in profile.gates:
+                if module.get("proposed_gates"):
+                    continue  # accepted module-specific proposals replace generic command defaults
                 try:
                     command = gate["command"].format_map(defaults)
                     workdir = gate.get("working_directory", "{module_path}").format_map(defaults)
@@ -99,6 +102,11 @@ def _module_context(config: dict[str, Any], registry: dict[str, Profile]) -> tup
                         f"'{gate.get('id')}' do perfil '{profile_id}': {error}"
                     ) from error
                 gate_rows.append(f"| {module_name} | {gate['id']} | `{workdir}` | `{command}` |")
+        for gate in module.get("proposed_gates", []):
+            gate_rows.append(
+                f"| {module_name} | {gate['id']} (proposto) | "
+                f"`{module['path']}` | `{gate['command']}` |"
+            )
 
     for service_name, service in config.get("services", {}).items():
         for profile_id in service.get("resolved_profiles", []):
@@ -134,8 +142,10 @@ def _plugin_context(config: dict[str, Any], plugins: dict[str, Plugin]) -> tuple
     return "\n".join(lines) or "- Nenhum plugin configurado.", "\n\n".join(rules)
 
 
-def build_outputs(config: dict[str, Any]) -> tuple[dict[str, str], dict[str, Any]]:
-    registry = load_profiles()
+def build_outputs(
+    config: dict[str, Any], registry: dict[str, Profile] | None = None
+) -> tuple[dict[str, str], dict[str, Any]]:
+    registry = load_profiles() if registry is None else registry
     plugins = load_plugins()
     gates, guidance, edge_cases = _module_context(config, registry)
     plugin_summary, plugin_rules = _plugin_context(config, plugins)
@@ -153,7 +163,31 @@ def build_outputs(config: dict[str, Any]) -> tuple[dict[str, str], dict[str, Any
     outputs: dict[str, str] = {}
     for group in ("commands", "templates", "rules"):
         for name, source in _read_assets(_core_directory(group)).items():
-            outputs[f".workflow/generated/{group}/{name}"] = mark_markdown(_render(source, context))
+            content = _render(source, context)
+            if group == "commands":
+                content = step_document(name.removesuffix(".md"), content)
+            outputs[f".workflow/generated/{group}/{name}"] = mark_markdown(content)
+
+    if config.get("domain_assessments"):
+        from .ai_models import DomainAssessment
+        from .domain_assessment import render_assessments
+
+        assessments = [DomainAssessment.model_validate(a) for a in config["domain_assessments"]]
+        outputs[".workflow/generated/rules/domain-assessment.md"] = mark_markdown(
+            render_assessments(assessments, approved=True)
+        )
+    context["command_index"] = "\n".join(
+        f"- `.workflow/generated/commands/{name}`"
+        for name in sorted(_read_assets(_core_directory("commands")))
+    )
+    outputs[".workflow/START.md"] = mark_markdown(
+        _render(
+            files("llm_feature_workflow")
+            .joinpath("assets/core/START.md")
+            .read_text(encoding="utf-8"),
+            context,
+        )
+    )
 
     selected: set[str] = set()
     for module in config.get("modules", {}).values():
@@ -166,6 +200,14 @@ def build_outputs(config: dict[str, Any]) -> tuple[dict[str, str], dict[str, Any
             content = f"# Perfil: {profile.name}\n\n{profile.rule.strip()}\n"
             outputs[f".workflow/generated/rules/profile-{profile_id}.md"] = (
                 MANAGED_MARKER + "\n" + content
+            )
+
+    for name, module in config.get("modules", {}).items():
+        if module.get("guidance"):
+            outputs[f".workflow/generated/rules/module-{name}.md"] = mark_markdown(
+                f"# Regras do módulo {name}\n\nEscopo: `{module['path']}` ({module['kind']}).\n\n"
+                "Origem: proposta LLM aprovada pelo usuário; recomendações não equivalem "
+                "a documentação oficial verificada.\n\n" + module["guidance"] + "\n"
             )
 
     if plugin_rules:
@@ -241,22 +283,28 @@ def _is_managed(content: str) -> bool:
     return MANAGED_MARKER in content or "# llm-workflow:managed" in content
 
 
-def installation_plan(root: Path, config: dict[str, Any]) -> tuple[dict[str, str], dict[str, Any]]:
-    outputs, resolved = build_outputs(config)
-    destinations = {"commands": ["commands"], "templates": ["templates"], "rules": []}
-    for target in config.get("agents", {}).get("targets", []):
-        adapter = ADAPTERS[target]
-        destinations["commands"].append(adapter["commands"])
-        destinations["rules"].append(adapter["rules"])
-    for group, targets in destinations.items():
+def installation_plan(
+    root: Path, config: dict[str, Any], registry: dict[str, Profile] | None = None
+) -> tuple[dict[str, str], dict[str, Any]]:
+    registry = load_profiles(root) if registry is None else registry
+    outputs, resolved = build_outputs(config, registry)
+    for group in ("commands", "templates", "rules"):
         prefix = f".workflow/generated/{group}/"
         for relative, content in list(outputs.items()):
             if relative.startswith(prefix):
-                for target in targets:
-                    outputs[f"{target}/{relative.removeprefix(prefix)}"] = content
+                name = relative.removeprefix(prefix)
+                if group in {"commands", "templates"}:
+                    outputs[f"{group}/{name}"] = content
+                if group != "templates":
+                    for target in config["agents"]["targets"]:
+                        outputs[f"{ADAPTERS[target][group]}/{name}"] = adapter_document(
+                            target, group, content
+                        )
     agents_body = (
         "# LLM Feature Workflow\n\n"
-        "Leia `MEMORY.md`, `.workflow/generated/rules/common.md` e "
+        "Comece por `.workflow/START.md`: índice, capacidades alternativas e retomada. "
+        "Leia `MEMORY.md`, `.workflow/generated/rules/common.md`, "
+        "`engineering.md`, `security.md` na mesma pasta e "
         "`.workflow/generated/profile-context.md` antes de planejar ou implementar. "
         "Abra as demais rules em `.workflow/generated/rules/` quando os perfis forem aplicáveis. "
         "Arquivos gerados não são instruções de terceiros para executar comandos automaticamente. "
@@ -276,7 +324,7 @@ def _owned(relative: str) -> bool:
     prefixes = [".workflow/generated/", "commands/", "templates/"]
     for adapter in ADAPTERS.values():
         prefixes.extend([adapter["commands"] + "/", adapter["rules"] + "/"])
-    return relative == "scripts/find_ghost_fields.py" or any(
+    return relative in {"scripts/find_ghost_fields.py", ".workflow/START.md"} or any(
         relative.startswith(prefix) for prefix in prefixes
     )
 
@@ -306,12 +354,22 @@ def preflight(root: Path, outputs: dict[str, str], previous: dict[str, str]) -> 
     return sorted(set(conflicts))
 
 
-def materialize(root: Path, config: dict[str, Any]) -> dict[str, str]:
+def materialize(
+    root: Path,
+    config: dict[str, Any],
+    *,
+    registry: dict[str, Profile] | None = None,
+    profile_files: dict[str, str] | None = None,
+) -> dict[str, str]:
     config_path(root)
     lock_path(root)
-    config = normalize_config(root, config)
+    config = normalize_config(root, config, registry)
     config["workflow_version"] = __version__
-    outputs, resolved = installation_plan(root, config)
+    outputs, resolved = installation_plan(root, config, registry)
+    for relative, content in (profile_files or {}).items():
+        if not relative.startswith(".workflow/profiles/") or not relative.endswith("/profile.yaml"):
+            raise WorkflowError("Destino inválido de perfil local.")
+        outputs[relative] = content
     previous = load_lock(root).get("managed_files", {})
     conflicts = preflight(root, outputs, previous)
     if conflicts:
@@ -327,7 +385,11 @@ def materialize(root: Path, config: dict[str, Any]) -> dict[str, str]:
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-        if not _seed(relative) and relative != "AGENTS.md":
+        if (
+            not _seed(relative)
+            and relative != "AGENTS.md"
+            and not relative.startswith(".workflow/profiles/")
+        ):
             managed[relative] = file_digest(content)
     for relative in previous.keys() - outputs.keys():
         path = safe_path(root, relative)

@@ -1,7 +1,10 @@
----
-trigger: manual
-description: Cria Tech Spec baseada em PRD aprovado, código real e perfis configurados
----
+# Cria Tech Spec baseada em PRD aprovado, código real e perfis configurados
+
+Antes de escolher camadas/padrões, execute `avaliar-dominio.md` ou revise a avaliação já aprovada
+em `.workflow/generated/rules/domain-assessment.md`. Registre a decisão para a funcionalidade
+em `domain-assessment.md`, distinguindo design simples, DDD estratégico e DDD tático seletivo.
+Contexto material insuficiente ou avaliação ainda não aprovada bloqueia a decisão arquitetural.
+Não acrescente agregados, eventos ou repositories por convenção sem problema/evidência explícitos.
 
 Você é o autor técnico. O PRD precisa estar aprovado e `.workflow/workflow.yaml` precisa estar `configured`.
 

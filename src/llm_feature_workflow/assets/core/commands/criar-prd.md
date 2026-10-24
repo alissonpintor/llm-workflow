@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Faz descoberta orientada por evidências e cria discovery.md + prd.md
----
+# Faz descoberta orientada por evidências e cria discovery.md + prd.md
 
 Você é o autor de produto. Explore o projeto antes de perguntar e faça perguntas somente sobre lacunas que exigem decisão humana.
 

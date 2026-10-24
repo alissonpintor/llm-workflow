@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "llm-feature-workflow"
-version = "0.1.0"
+version = "0.2.0"
 description = "Workflow reutilizável e agnóstico de stack para PRDs, Tech Specs, tasks e execução assistida por LLMs"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,7 +22,9 @@ classifiers = [
   "Topic :: Software Development :: Code Generators",
 ]
 dependencies = [
+  "httpx>=0.28,<1",
   "jinja2>=3.1.4,<4",
+  "pydantic>=2.10,<3",
   "pyyaml>=6.0.2,<7",
 ]
 

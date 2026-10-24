@@ -27,6 +27,14 @@
 
 ## Arquitetura da Solução
 
+### Adequação de DDD
+
+- Avaliação aprovada: `domain-assessment.md`
+- Recomendação por módulo/área e evidências do usuário:
+- Padrões escolhidos, problema concreto, benefícios e custos:
+- Alternativa mais simples e motivo da decisão:
+- Hipóteses/gatilhos de reavaliação:
+
 ### Visão Geral dos Módulos
 
 | Módulo | Novo/modificado | Responsabilidade | Interface afetada |

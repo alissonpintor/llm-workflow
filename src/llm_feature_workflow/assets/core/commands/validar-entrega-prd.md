@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Faz aceite integrado antes do release
----
+# Faz aceite integrado antes do release
 
 Com todas as tasks aprovadas e commitadas, compare a entrega completa com RF/NFR/EDGE/AC, execute todos os gates configurados e plugins de aceite final, confirme documentação, segurança, operação e ausência de dívida bloqueante.
 

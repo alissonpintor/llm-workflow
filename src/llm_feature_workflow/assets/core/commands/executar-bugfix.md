@@ -1,7 +1,4 @@
----
-trigger: manual
-description: Diagnostica e corrige um bug com regressão testada e review independente
----
+# Diagnostica e corrige um bug com regressão testada e review independente
 
 1. Reproduza o comportamento e registre esperado/observado, impacto e evidência.
 2. Leia decisões, testes, rules e profile-context aplicáveis. Capture o SHA-base.

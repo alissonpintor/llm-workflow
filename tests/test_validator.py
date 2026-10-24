@@ -8,6 +8,15 @@ from llm_feature_workflow.validator import validate_feature
 def test_validate_complete_feature(tmp_path: Path) -> None:
     reviews = tmp_path / "reviews"
     reviews.mkdir()
+    (tmp_path / "domain-assessment.md").write_text(
+        "# Avaliação\n- Status: APROVADO\n- Recomendação: simple_design\n"
+        "- Perguntas bloqueantes: 0\n## Escopo e Recomendação\nCRUD simples.\n"
+        "## Evidências do Usuário\nBRIEF: Cadastro simples sem regras além dos campos.\n"
+        "## Padrões, Benefícios e Custos\nNenhum padrão adicional.\n"
+        "## Alternativa Mais Simples\nOrganização por funcionalidades.\n"
+        "## Perguntas Abertas\nNenhuma.\n## Aprovação\nUsuário aprovou na revisão.\n",
+        encoding="utf-8",
+    )
     (tmp_path / "discovery.md").write_text(
         "# Descoberta\n## Evidências e Fontes\nEVD-01\n"
         "## Casos de Borda Candidatos\nEDGE-01\n## Perguntas Abertas\nNenhuma.\n",
@@ -75,3 +84,17 @@ def test_ui_spec_is_required_when_applicable(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert "uiux-spec.md obrigatório" in validate_feature(tmp_path).errors
+
+
+def test_domain_approval_and_questions_block_ready(tmp_path: Path) -> None:
+    test_validate_complete_feature(tmp_path)
+    path = tmp_path / "domain-assessment.md"
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        .replace("Status: APROVADO", "Status: PROPOSTA")
+        .replace("Perguntas bloqueantes: 0", "Perguntas bloqueantes: 1"),
+        encoding="utf-8",
+    )
+    errors = validate_feature(tmp_path).errors
+    assert "domain-assessment.md: aprovação humana pendente" in errors
+    assert "domain-assessment.md: perguntas bloqueantes pendentes" in errors
